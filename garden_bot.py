@@ -60,7 +60,7 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
-    template_path = "03cad_pechat'.pdf"
+    template_path = "03cad_pechat.pdf"  # Исправлено имя
     output_path = f"сертификат_#{number}.pdf"
 
     try:
@@ -118,7 +118,7 @@ async def main():
     app.add_handler(CommandHandler("ping", ping))
     app.add_handler(conv_handler)
 
-    # Устанавливаем webhook
+    # Установка webhook
     await app.bot.set_webhook(url=WEBHOOK_URL)
 
     # Запуск webhook-сервера
@@ -132,3 +132,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
+
