@@ -2,21 +2,33 @@ import logging
 import os
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    filters, ConversationHandler, ContextTypes
+    Application, CommandHandler, MessageHandler, ConversationHandler,
+    ContextTypes, filters
 )
 import fitz
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+# Константы состояний
 SUM, NUMBER = range(2)
+
+# Логирование
 logging.basicConfig(level=logging.INFO)
+
+# URL и токен из переменных окружения
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+
+# Обработчики
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[KeyboardButton("🧾 Получить сертификат")]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("Нажмите кнопку ниже:", reply_markup=reply_markup)
-    return ConversationHandler.END  # НЕ запускаем сценарий здесь — только кнопку показываем
+    return ConversationHandler.END
+
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("✅ Бот активен и работает по webhook!")
 
 async def cert_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Введите номинал:")
@@ -74,12 +86,9 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"Ошибка при сохранении PDF: {e}")
         return ConversationHandler.END
 
-    filename = os.path.basename(output_path)
-
     try:
-        await update.message.reply_text("Сертификат готов!:")
         with open(output_path, "rb") as f:
-            await update.message.reply_document(f, filename=filename)
+            await update.message.reply_document(f, filename=os.path.basename(output_path))
     except Exception as e:
         await update.message.reply_text(f"Ошибка при отправке PDF: {e}")
 
@@ -89,8 +98,9 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-def main():
-    app = ApplicationBuilder().token("8156392250:AAFFXLhnOwbjf5FLHqGL1dsMiIBKTzoNQ94").build()
+# Основной запуск приложения через webhook
+async def main():
+    app = Application.builder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[
@@ -105,8 +115,20 @@ def main():
     )
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ping", ping))
     app.add_handler(conv_handler)
-    app.run_polling()
 
+    # Устанавливаем webhook
+    await app.bot.set_webhook(url=WEBHOOK_URL)
+
+    # Запуск webhook-сервера
+    await app.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.environ.get("PORT", 10000)),
+        webhook_url=WEBHOOK_URL
+    )
+
+# Точка входа
 if __name__ == "__main__":
-    main()
+    import asyncio
+    asyncio.run(main())
