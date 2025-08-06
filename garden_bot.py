@@ -50,7 +50,7 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
-    template_path = "03cad_pechat'"  # исправь апостроф в названии файла!
+    template_path = "03cad_pechat'.pdf'"  # исправь апостроф в названии файла!
     output_path = f"сертификат_#{number}.pdf"
 
     try:
