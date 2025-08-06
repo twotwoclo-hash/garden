@@ -23,18 +23,27 @@ async def cert_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return SUM
 
 async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['sum'] = update.message.text
+    user_input = update.message.text.strip()
+    if not user_input:
+        await update.message.reply_text("Пожалуйста, сначала введите данные (номинал).")
+        return SUM
+    context.user_data['sum'] = user_input
     await update.message.reply_text("Введите номер сертификата:")
     return NUMBER
 
 async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    number = update.message.text
+    user_input = update.message.text.strip()
+    if not user_input:
+        await update.message.reply_text("Пожалуйста, сначала введите данные (номер сертификата).")
+        return NUMBER
+
+    number = user_input
     context.user_data['number'] = number
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
     template_path = "03cad_pechat'.pdf"
-    output_path = "готовый_сертификат.pdf"
+    output_path = f"сертификат_#{number}.pdf"
 
     try:
         doc = fitz.open(template_path)
@@ -62,7 +71,7 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     filename = os.path.basename(output_path)
 
     try:
-        await update.message.reply_text("Перешли это ХОСТАМ:")
+        await update.message.reply_text("Сертификат готов!:")
         with open(output_path, "rb") as f:
             await update.message.reply_document(f, filename=filename)
     except Exception as e:
