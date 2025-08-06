@@ -1,5 +1,5 @@
-import logging
 import os
+import logging
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ConversationHandler,
@@ -8,24 +8,14 @@ from telegram.ext import (
 import fitz
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-import nest_asyncio
-import asyncio
 
-# --- ИНИЦИАЛИЗАЦИЯ ---
-nest_asyncio.apply()
-
-# --- СОСТОЯНИЯ ДЛЯ DIALOG ---
-SUM, NUMBER = range(2)
-
-# --- ЛОГИ ---
 logging.basicConfig(level=logging.INFO)
 
-# --- ТОКЕН И URL ---
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-WEBHOOK_URL = os.environ.get("WEBHOOK_URL")  # Пример: https://garden-bot-abc.onrender.com
-PORT = int(os.environ.get("PORT", 10000))
+SUM, NUMBER = range(2)
 
-# --- HANDLERS ---
+BOT_TOKEN = os.environ["BOT_TOKEN"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+PORT = int(os.environ.get("PORT", 10000))
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[KeyboardButton("🧾 Получить сертификат")]]
@@ -34,7 +24,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Бот активен и работает по webhook!")
+    await update.message.reply_text("✅ Бот жив и на связи!")
 
 async def cert_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Введите номинал:")
@@ -42,7 +32,7 @@ async def cert_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
-    if not user_input or not user_input.isdigit():
+    if not user_input.isdigit():
         await update.message.reply_text("Ошибка: введите только цифры для номинала.")
         return SUM
     context.user_data['sum'] = user_input
@@ -51,15 +41,16 @@ async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
-    if not user_input or not user_input.isdigit():
+    if not user_input.isdigit():
         await update.message.reply_text("Ошибка: введите только цифры для номера сертификата.")
         return NUMBER
 
     number = user_input
+    context.user_data['number'] = number
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
-    template_path = "03cad_pechat'.pdf"
+    template_path = "03cad_pechat'"  # исправь апостроф в названии файла!
     output_path = f"сертификат_#{number}.pdf"
 
     try:
@@ -97,14 +88,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# --- ЗАПУСК БОТА ---
-
-async def main():
+def main():
     app = Application.builder().token(BOT_TOKEN).build()
-
-    # Хендлеры
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("ping", ping))
 
     conv_handler = ConversationHandler(
         entry_points=[
@@ -117,20 +102,20 @@ async def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ping", ping))
     app.add_handler(conv_handler)
 
-    # Установка webhook
-    await app.bot.set_webhook(url=WEBHOOK_URL)
+    # Устанавливаем webhook
+    app.bot.set_webhook(url=WEBHOOK_URL)
 
-    # Запуск сервера
-    await app.run_webhook(
+    # Запускаем webhook сервер и слушаем порт
+    app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
-        webhook_url=WEBHOOK_URL
+        webhook_url=WEBHOOK_URL,
     )
 
-# --- СТАРТ ---
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(main())
-    loop.run_forever()
+    main()
