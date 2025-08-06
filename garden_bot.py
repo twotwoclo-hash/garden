@@ -8,6 +8,10 @@ from telegram.ext import (
 import fitz
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+import nest_asyncio
+import asyncio
+
+nest_asyncio.apply()
 
 # Константы состояний
 SUM, NUMBER = range(2)
@@ -17,10 +21,10 @@ logging.basicConfig(level=logging.INFO)
 
 # Переменные окружения
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-WEBHOOK_URL = os.environ["WEBHOOK_URL"]
+WEBHOOK_URL = os.environ["WEBHOOK_URL"]  # пример: https://garden-bot-abc123.onrender.com
+PORT = int(os.environ.get("PORT", 10000))
 
-# Обработчики
-
+# Старт
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[KeyboardButton("🧾 Получить сертификат")]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -37,7 +41,7 @@ async def cert_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
     if not user_input.isdigit():
-        await update.message.reply_text("Ошибка: введите только цифры для номинала.")
+        await update.message.reply_text("❌ Ошибка: введите только цифры для номинала.")
         return SUM
     context.user_data['sum'] = user_input
     await update.message.reply_text("Введите номер сертификата:")
@@ -46,48 +50,43 @@ async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
     if not user_input.isdigit():
-        await update.message.reply_text("Ошибка: введите только цифры для номера сертификата.")
+        await update.message.reply_text("❌ Ошибка: введите только цифры для номера сертификата.")
         return NUMBER
 
-    number = user_input
-    context.user_data['number'] = number
+    context.user_data['number'] = user_input
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
     template_path = "03cad_pechat'.pdf"
-    output_path = f"сертификат_#{number}.pdf"
+    output_path = f"сертификат_#{user_input}.pdf"
 
     try:
         doc = fitz.open(template_path)
         if doc.page_count < 2:
-            await update.message.reply_text("Ошибка: в шаблоне должно быть минимум 2 страницы.")
-            doc.close()
-            return ConversationHandler.END
-
+            raise Exception("В шаблоне должно быть минимум 2 страницы.")
         page = doc[1]
         page.insert_text((165, 245), user_sum, fontsize=20, fontname="helv", color=(1, 1, 1))
         page.insert_text((180, 285), valid_until, fontsize=20, fontname="helv", color=(1, 1, 1))
-        page.insert_text((20, 420), f"#{number}", fontsize=10, fontname="helv", color=(1, 1, 1))
-
+        page.insert_text((20, 420), f"#{user_input}", fontsize=10, fontname="helv", color=(1, 1, 1))
         doc.save(output_path, incremental=False)
         doc.close()
     except Exception as e:
-        await update.message.reply_text(f"Ошибка при обработке PDF: {e}")
+        await update.message.reply_text(f"⚠️ Ошибка при генерации PDF: {e}")
         return ConversationHandler.END
 
     try:
         with open(output_path, "rb") as f:
             await update.message.reply_document(f, filename=os.path.basename(output_path))
     except Exception as e:
-        await update.message.reply_text(f"Ошибка при отправке PDF: {e}")
+        await update.message.reply_text(f"⚠️ Ошибка при отправке PDF: {e}")
 
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Операция отменена.")
+    await update.message.reply_text("❌ Операция отменена.")
     return ConversationHandler.END
 
-# Основной запуск через webhook
+# Главная функция
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -100,7 +99,7 @@ async def main():
             SUM: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_sum)],
             NUMBER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_number)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)]
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     app.add_handler(CommandHandler("start", start))
@@ -113,19 +112,10 @@ async def main():
     # Запуск webhook-сервера
     await app.run_webhook(
         listen="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000)),
-        webhook_url=WEBHOOK_URL
+        port=PORT,
+        webhook_url=WEBHOOK_URL,
     )
 
-# Универсальный запуск, устойчивый к уже активному event loop
+# Запуск
 if __name__ == "__main__":
-    import asyncio
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "event loop is running" in str(e).lower():
-            loop = asyncio.get_event_loop()
-            loop.create_task(main())
-            loop.run_forever()
-        else:
-            raise
+    asyncio.run(main())
