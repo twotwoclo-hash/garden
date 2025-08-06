@@ -27,6 +27,9 @@ async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not user_input:
         await update.message.reply_text("Пожалуйста, сначала введите данные (номинал).")
         return SUM
+    if not user_input.isdigit():
+        await update.message.reply_text("Ошибка: введите только цифры для номинала.")
+        return SUM
     context.user_data['sum'] = user_input
     await update.message.reply_text("Введите номер сертификата:")
     return NUMBER
@@ -35,6 +38,9 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
     if not user_input:
         await update.message.reply_text("Пожалуйста, сначала введите данные (номер сертификата).")
+        return NUMBER
+    if not user_input.isdigit():
+        await update.message.reply_text("Ошибка: введите только цифры для номера сертификата.")
         return NUMBER
 
     number = user_input
