@@ -15,7 +15,7 @@ SUM, NUMBER = range(2)
 # Логирование
 logging.basicConfig(level=logging.INFO)
 
-# URL и токен из переменных окружения
+# Переменные окружения
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 
@@ -36,9 +36,6 @@ async def cert_entry(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
-    if not user_input:
-        await update.message.reply_text("Пожалуйста, сначала введите данные (номинал).")
-        return SUM
     if not user_input.isdigit():
         await update.message.reply_text("Ошибка: введите только цифры для номинала.")
         return SUM
@@ -48,9 +45,6 @@ async def get_sum(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_input = update.message.text.strip()
-    if not user_input:
-        await update.message.reply_text("Пожалуйста, сначала введите данные (номер сертификата).")
-        return NUMBER
     if not user_input.isdigit():
         await update.message.reply_text("Ошибка: введите только цифры для номера сертификата.")
         return NUMBER
@@ -60,30 +54,25 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
-    template_path = "03cad_pechat.pdf"  # Исправлено имя
+    template_path = "03cad_pechat'.pdf"
     output_path = f"сертификат_#{number}.pdf"
 
     try:
         doc = fitz.open(template_path)
-    except Exception as e:
-        await update.message.reply_text(f"Ошибка при открытии шаблона: {e}")
-        return ConversationHandler.END
+        if doc.page_count < 2:
+            await update.message.reply_text("Ошибка: в шаблоне должно быть минимум 2 страницы.")
+            doc.close()
+            return ConversationHandler.END
 
-    if doc.page_count < 2:
-        await update.message.reply_text("Ошибка: в шаблоне должно быть минимум 2 страницы.")
-        doc.close()
-        return ConversationHandler.END
+        page = doc[1]
+        page.insert_text((165, 245), user_sum, fontsize=20, fontname="helv", color=(1, 1, 1))
+        page.insert_text((180, 285), valid_until, fontsize=20, fontname="helv", color=(1, 1, 1))
+        page.insert_text((20, 420), f"#{number}", fontsize=10, fontname="helv", color=(1, 1, 1))
 
-    page = doc[1]
-    page.insert_text((165, 245), user_sum, fontsize=20, fontname="helv", color=(1, 1, 1))
-    page.insert_text((180, 285), valid_until, fontsize=20, fontname="helv", color=(1, 1, 1))
-    page.insert_text((20, 420), f"#{number}", fontsize=10, fontname="helv", color=(1, 1, 1))
-
-    try:
         doc.save(output_path, incremental=False)
         doc.close()
     except Exception as e:
-        await update.message.reply_text(f"Ошибка при сохранении PDF: {e}")
+        await update.message.reply_text(f"Ошибка при обработке PDF: {e}")
         return ConversationHandler.END
 
     try:
@@ -98,7 +87,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-# Основной запуск приложения через webhook
+# Основной запуск через webhook
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -128,8 +117,15 @@ async def main():
         webhook_url=WEBHOOK_URL
     )
 
-# Точка входа
+# Универсальный запуск, устойчивый к уже активному event loop
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
-
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "event loop is running" in str(e).lower():
+            loop = asyncio.get_event_loop()
+            loop.create_task(main())
+            loop.run_forever()
+        else:
+            raise
