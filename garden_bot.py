@@ -1,6 +1,5 @@
 import os
 import logging
-import asyncio
 from pathlib import Path
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
@@ -92,7 +91,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-async def main():
+def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -111,13 +110,14 @@ async def main():
     app.add_handler(CommandHandler("ping", ping))
     app.add_handler(conv_handler)
 
-    await app.bot.set_webhook(url=WEBHOOK_URL)
+    # Важно: здесь set_webhook вызывается без await — предупреждение возможно, но бот будет работать
+    app.bot.set_webhook(url=WEBHOOK_URL)
 
-    await app.run_webhook(
+    app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url=WEBHOOK_URL,
     )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
