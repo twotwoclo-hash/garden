@@ -1,5 +1,7 @@
 import os
 import logging
+import asyncio
+from pathlib import Path
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ConversationHandler,
@@ -16,6 +18,9 @@ SUM, NUMBER = range(2)
 BOT_TOKEN = os.environ["BOT_TOKEN"]
 WEBHOOK_URL = os.environ["WEBHOOK_URL"]
 PORT = int(os.environ.get("PORT", 10000))
+
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATE_PATH = BASE_DIR / "sert_temp.pdf"
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[KeyboardButton("🧾 Получить сертификат")]]
@@ -50,11 +55,10 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_sum = context.user_data['sum']
     valid_until = (datetime.now() + relativedelta(months=3)).strftime("%d.%m.%Y")
 
-    template_path = "sert_temp.pdf"
-    output_path = f"сертификат_#{number}.pdf"
+    output_path = BASE_DIR / f"сертификат_#{number}.pdf"
 
     try:
-        doc = fitz.open(template_path)
+        doc = fitz.open(TEMPLATE_PATH)
     except Exception as e:
         await update.message.reply_text(f"Ошибка при открытии шаблона: {e}")
         return ConversationHandler.END
@@ -78,7 +82,7 @@ async def get_number(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         with open(output_path, "rb") as f:
-            await update.message.reply_document(f, filename=os.path.basename(output_path))
+            await update.message.reply_document(f, filename=output_path.name)
     except Exception as e:
         await update.message.reply_text(f"Ошибка при отправке PDF: {e}")
 
@@ -88,7 +92,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Операция отменена.")
     return ConversationHandler.END
 
-def main():
+async def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -107,15 +111,13 @@ def main():
     app.add_handler(CommandHandler("ping", ping))
     app.add_handler(conv_handler)
 
-    # Устанавливаем webhook
-    app.bot.set_webhook(url=WEBHOOK_URL)
+    await app.bot.set_webhook(url=WEBHOOK_URL)
 
-    # Запускаем webhook сервер и слушаем порт
-    app.run_webhook(
+    await app.run_webhook(
         listen="0.0.0.0",
         port=PORT,
         webhook_url=WEBHOOK_URL,
     )
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
